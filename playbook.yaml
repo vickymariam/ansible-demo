@@ -1,0 +1,26 @@
+---
+- name: Install Apache on Linux VM
+  hosts: web-server
+  become: yes
+  #remote_user: adminuser
+  become_method: sudo
+  gather_facts: yes
+
+  vars:
+    ansible_user: adminuser
+    ansible_password: AdminUser1234
+
+  tasks:
+    - name: Update package cache
+      apt:
+        update_cache: yes
+
+    - name: Install Apache
+      apt:
+        name: apache2
+        state: present
+
+    - name: Start Apache service
+      service:
+        name: apache2
+        state: started

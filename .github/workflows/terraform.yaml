@@ -1,0 +1,107 @@
+
+name: 'deploy a vm'
+on:
+  workflow_dispatch:
+  push:
+    branches: 
+      - ansible-demo
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    name: 'Terraform'
+    runs-on: perizer-gha-runner-scale-set
+
+    defaults:
+      run:
+        shell: bash
+
+    env:
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Check_repo
+      run: ls -al
+
+    - name: Install Azure CLI
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y azure-cli
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v1
+      
+    - name: Terraform Init
+      run: terraform init
+
+    - name: Terraform Format
+      run: terraform fmt -check
+      continue-on-error: true
+
+    - name: Terraform Plan
+      run: terraform plan -input=false
+
+    - name: Terraform Apply
+      if: github.ref == 'refs/heads/ansible-demo' && github.event_name == 'push'
+      run: terraform apply -auto-approve -input=false
+
+    - name: Wait for VM to be ready
+      run: sleep 60  
+
+  ansible:
+    name: 'Run Ansible Playbook'
+    runs-on: perizer-gha-runner-scale-set
+    needs: terraform  
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Azure login
+      run: az login --service-principal -u ${{ secrets.ARM_CLIENT_ID }} -p ${{ secrets.ARM_CLIENT_SECRET }} --tenant ${{ secrets.ARM_TENANT_ID }}
+
+
+    - name: Set Azure subscription
+      run: |
+       az account set --subscription ${{ secrets.ARM_SUBSCRIPTION_ID }}
+       
+    - name: Install Azure CLI
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y azure-cli
+
+    - name: Install Ansible
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ansible
+
+    - name: Install Python and Pip
+      run: |
+        sudo apt-get install -y python3 python3-pip
+ 
+    - name: Install Azure Collection
+      run: |
+          pip install -r https://raw.githubusercontent.com/ansible-collections/azure/dev/requirements-azure.txt && \
+          ansible-galaxy collection install azure.azcollection:1.11.0  
+
+    - name: Install sshpass
+      run: |
+          sudo apt-get install -y sshpass
+
+      
+    - name: Ansible Playbook
+      run: |
+          ansible-playbook -i my_azure_rm.yaml playbook.yaml
+
+    

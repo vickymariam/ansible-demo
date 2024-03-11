@@ -1,0 +1,13 @@
+plugin: azure_rm
+include_vm_resource_groups:
+  - ansible-demo-rg
+auto_source: cli
+plain_host_names: yes
+
+# exclude_host_filters:
+#     # excludes hosts in the eastus region
+#     - location in ['eastus2']
+
+conditional_groups:
+  linux: "'Ubuntu' in os_profile.system"
+  windows: "'windows' in os_profile.system"
